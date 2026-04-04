@@ -579,8 +579,8 @@
                                 支援 JPG、PNG，可一次多張
                             </div>
                             <div class="btn-row">
-                                <button class="btn btn-camera" onclick="document.getElementById('cameraInput').click()">📷 直接拍照</button>
-                                <button class="btn btn-camera" onclick="document.getElementById('galleryInput').click()">🖼️ 從相簿選取</button>
+                                <button class="btn btn-camera" onclick="event.stopPropagation(); document.getElementById('cameraInput').click()">📷 直接拍照</button>
+                                <button class="btn btn-camera" onclick="event.stopPropagation(); document.getElementById('galleryInput').click()">🖼️ 從相簿選取</button>
                             </div>
                         </div>
                         <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none" onchange="handleFiles(this.files)">
