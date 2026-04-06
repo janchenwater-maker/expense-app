@@ -980,19 +980,24 @@
             const res = await fetch(GAS_URL, {
                 method: 'POST',
                 redirect: 'follow',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'data=' + encodeURIComponent(JSON.stringify({
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({
                     action: 'scan',
                     image: b64,
                     mime: mime,
                     prompt: prompt
-                }))
+                })
             });
 
             const result = await res.json();
-            console.log('AI scan raw:', JSON.stringify(result).slice(0, 500));
+            console.log('AI scan raw:', JSON.stringify(result));
+
+            if (result.error) throw new Error('Apps Script 錯誤：' + result.error);
 
             const rawText = result.text || '{}';
+            console.log('Gemini text:', rawText.slice(0, 300));
+            showSyncToast('Gemini: ' + rawText.slice(0, 80));
+
             const text = rawText.replace(/```json|```/g, '').trim();
             const match = text.match(/\{[\s\S]*\}/);
             if (!match) throw new Error('無法解析 AI 回傳：' + rawText.slice(0, 100));
