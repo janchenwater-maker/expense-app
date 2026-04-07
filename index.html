@@ -501,6 +501,46 @@
         .month-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
         .month-bar { width: 100%; background: linear-gradient(180deg, var(--blue), #6366f1); border-radius: 4px 4px 0 0; min-height: 4px; transition: height 0.5s ease; }
         .month-lbl { font-size: 10px; color: var(--muted); }
+        .login-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            background: var(--bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .login-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 36px 28px;
+            width: 100%;
+            max-width: 360px;
+            text-align: center;
+        }
+        .login-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+        .login-sub { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+        .employee-tag {
+            font-size: 12px;
+            color: var(--muted);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+        .logout-btn {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--muted);
+            border-radius: 6px;
+            padding: 3px 8px;
+            font-size: 11px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .logout-btn:hover { border-color: var(--red); color: var(--red); }
         .modal-overlay {
             position: fixed;
             inset: 0;
@@ -545,7 +585,10 @@
             <button class="header-tab" onclick="switchTab('records')">📋 報帳記錄</button>
             <button class="header-tab" onclick="switchTab('stats')">📊 統計匯出</button>
         </div>
-        <div class="header-spacer"></div>
+        <div id="employeeTag" class="employee-tag">
+            <span id="employeeLabel"></span>
+            <button class="logout-btn" onclick="doLogout()">登出</button>
+        </div>
         <div class="header-total">
             <div class="header-total-label">本月累計</div>
             <div class="header-total-val" id="headerTotal">NT$ 0</div>
@@ -666,6 +709,21 @@
         </button>
     </div>
 
+    <!-- LOGIN OVERLAY -->
+    <div id="loginOverlay" class="login-overlay" style="display:none">
+        <div class="login-card">
+            <div style="font-size:44px;margin-bottom:12px">🧾</div>
+            <div class="login-title">智慧報帳系統</div>
+            <div class="login-sub" id="loginSub">載入員工清單中...</div>
+            <select id="loginSelect" class="form-input"
+                style="text-align:center;font-size:15px;padding:14px;width:100%;cursor:pointer">
+                <option value="">載入中...</option>
+            </select>
+            <button class="btn btn-primary" style="width:100%;margin-top:12px;padding:14px;font-size:15px"
+                onclick="doLogin()">進入系統</button>
+        </div>
+    </div>
+
     <!-- EDIT MODAL -->
     <div id="editModal" class="modal-overlay" style="display:none" onclick="closeModal()">
         <div class="modal-sheet" onclick="event.stopPropagation()">
@@ -725,6 +783,7 @@
         // ════ State ════
         let records = JSON.parse(localStorage.getItem('xp_records') || '[]');
         let queue = [];
+        let currentEmployee = localStorage.getItem('xp_employee') || '';
 
         // ════ Persistence ════
         function save() {
@@ -748,7 +807,10 @@
 
         function updateTotal() {
             const mo = new Date().toISOString().slice(0,7);
-            const t = records.filter(r=>r.date?.startsWith(mo)).reduce((s,r)=>s+Number(r.amount||0),0);
+            const t = records.filter(r=>
+                (!currentEmployee || r.applicant === currentEmployee) &&
+                r.date?.startsWith(mo)
+            ).reduce((s,r)=>s+Number(r.amount||0),0);
             document.getElementById('headerTotal').textContent = 'NT$ '+fmt(t);
         }
 
@@ -1024,7 +1086,11 @@
         function getFiltered(){
             const m=document.getElementById('filterMonth')?.value||'';
             const c=document.getElementById('filterCat')?.value||'';
-            return records.filter(r=>(!m||r.date?.startsWith(m))&&(!c||r.category===c));
+            return records.filter(r=>
+                (!currentEmployee || r.applicant === currentEmployee) &&
+                (!m||r.date?.startsWith(m)) &&
+                (!c||r.category===c)
+            );
         }
 
         function renderRecords(){
@@ -1128,7 +1194,10 @@
 
         function renderStats(){
             const m=document.getElementById('statsMonth')?.value||'';
-            const fl=records.filter(r=>!m||r.date?.startsWith(m));
+            const fl=records.filter(r=>
+                (!currentEmployee || r.applicant === currentEmployee) &&
+                (!m||r.date?.startsWith(m))
+            );
             const total=fl.reduce((s,r)=>s+Number(r.amount||0),0);
 
             document.getElementById('kpiGrid').innerHTML=[
@@ -1169,6 +1238,61 @@
             document.getElementById('exportBtn').disabled=!fl.length;
         }
 
+        // ════ Login ════
+        async function fetchEmployees(){
+            const sel = document.getElementById('loginSelect');
+            try {
+                const res = await fetch(GAS_URL, {
+                    method:'POST', redirect:'follow',
+                    headers:{'Content-Type':'text/plain'},
+                    body: JSON.stringify({action:'employees'})
+                });
+                const data = await res.json();
+                if(data.employees && data.employees.length){
+                    sel.innerHTML = '<option value="">-- 請選擇姓名 --</option>' +
+                        data.employees.map(e=>`<option value="${e}">${e}</option>`).join('');
+                    document.getElementById('loginSub').textContent = '請選擇您的姓名';
+                } else {
+                    sel.innerHTML = '<option value="">（試算表尚未設定員工清單）</option>';
+                    document.getElementById('loginSub').textContent = '請先在試算表建立員工清單';
+                }
+            } catch(e) {
+                sel.innerHTML = '<option value="">載入失敗，請重新整理</option>';
+                document.getElementById('loginSub').textContent = '無法連線，請檢查網路';
+            }
+        }
+
+        function doLogin(){
+            const code = document.getElementById('loginSelect').value.trim();
+            if(!code){
+                document.getElementById('loginSelect').style.borderColor='var(--red)';
+                return;
+            }
+            document.getElementById('loginSelect').style.borderColor='';
+            currentEmployee = code;
+            localStorage.setItem('xp_employee', code);
+            document.getElementById('loginOverlay').style.display='none';
+            document.getElementById('applicantInput').value = code;
+            document.getElementById('employeeLabel').textContent = '👤 ' + code;
+            buildFilters();
+            renderRecords();
+            buildStatsFilter();
+            renderStats();
+            updateTotal();
+        }
+
+        function doLogout(){
+            if(!confirm('確定要登出嗎？')) return;
+            currentEmployee = '';
+            localStorage.removeItem('xp_employee');
+            document.getElementById('loginSelect').value = '';
+            document.getElementById('loginSelect').style.borderColor='';
+            document.getElementById('loginOverlay').style.display='flex';
+            document.getElementById('applicantInput').value = '';
+            document.getElementById('employeeLabel').textContent = '';
+            fetchEmployees();
+        }
+
         // ════ Load from Sheet ════
         async function loadFromSheet(){
             showSyncToast('📲 從 Google 試算表載入中...');
@@ -1176,7 +1300,7 @@
                 const res = await fetch(GAS_URL, {
                     method:'POST', redirect:'follow',
                     headers:{'Content-Type':'text/plain'},
-                    body: JSON.stringify({action:'load'})
+                    body: JSON.stringify({action:'load', applicant: currentEmployee || ''})
                 });
                 const data = await res.json();
                 if(data.error) throw new Error(data.error);
@@ -1226,6 +1350,13 @@
         }
 
         // ════ Init ════
+        if(currentEmployee){
+            document.getElementById('applicantInput').value = currentEmployee;
+            document.getElementById('employeeLabel').textContent = '👤 ' + currentEmployee;
+        } else {
+            document.getElementById('loginOverlay').style.display = 'flex';
+            fetchEmployees();
+        }
         updateTotal();
 
         // ════ Drag & Drop ════
