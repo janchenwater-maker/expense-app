@@ -1135,18 +1135,17 @@
             const rec=records.find(r=>String(r.id)===String(id));
             records=records.filter(r=>String(r.id)!==String(id));
             save(); buildFilters(); renderRecords();
-            if(rec&&rec.seq){
+            if(rec){
                 showSyncToast('🗑️ 同步刪除中...');
                 try{
-                    await fetch(GAS_URL,{
-                        method:'POST',mode:'no-cors',
-                        headers:{'Content-Type':'application/json'},
-                        body:JSON.stringify({action:'delete',seq:rec.seq})
+                    const res = await fetch(GAS_URL,{
+                        method:'POST', redirect:'follow',
+                        headers:{'Content-Type':'text/plain'},
+                        body:JSON.stringify({action:'delete', id: rec.id})
                     });
-                    showSyncToast('✅ 已從 Google 試算表刪除');
+                    const result = await res.json();
+                    showSyncToast(result.ok ? '✅ 已從 Google 試算表刪除' : '⚠️ 本機已刪除，試算表請手動刪除');
                 }catch(e){ showSyncToast('⚠️ 本機已刪除，試算表請手動刪除'); }
-            } else {
-                showSyncToast('✅ 已刪除（此筆未同步過）');
             }
         }
 
