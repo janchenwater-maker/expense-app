@@ -1310,6 +1310,8 @@
                 }
                 records = data.records;
                 save();
+                buildFilters();
+                buildStatsFilter();
                 renderRecords();
                 renderStats();
                 showSyncToast('✅ 已載入 ' + data.records.length + ' 筆資料');
