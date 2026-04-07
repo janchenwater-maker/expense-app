@@ -644,6 +644,7 @@
 
                     <button id="exportBtn" class="btn-export" onclick="exportExcel()">📥 匯出 Excel 給財務</button>
                     <button class="btn-export" style="margin-top:10px;background:#4f8ef7" onclick="syncAllToSheet()">☁️ 手動同步到 Google 試算表</button>
+                    <button class="btn-export" style="margin-top:10px;background:#7c3aed" onclick="loadFromSheet()">📲 從 Google 試算表載入資料</button>
                 </div>
             </div>
         </div>
@@ -1166,6 +1167,31 @@
                 }).join('');
             }
             document.getElementById('exportBtn').disabled=!fl.length;
+        }
+
+        // ════ Load from Sheet ════
+        async function loadFromSheet(){
+            showSyncToast('📲 從 Google 試算表載入中...');
+            try {
+                const res = await fetch(GAS_URL, {
+                    method:'POST', redirect:'follow',
+                    headers:{'Content-Type':'text/plain'},
+                    body: JSON.stringify({action:'load'})
+                });
+                const data = await res.json();
+                if(data.error) throw new Error(data.error);
+                if(!data.records || !data.records.length){
+                    showSyncToast('☁️ 試算表沒有資料');
+                    return;
+                }
+                records = data.records;
+                save();
+                renderRecords();
+                renderStats();
+                showSyncToast('✅ 已載入 ' + data.records.length + ' 筆資料');
+            } catch(e) {
+                showSyncToast('❌ 載入失敗：' + e.message);
+            }
         }
 
         // ════ Export ════
