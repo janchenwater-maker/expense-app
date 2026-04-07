@@ -784,6 +784,7 @@
         let records = JSON.parse(localStorage.getItem('xp_records') || '[]');
         let queue = [];
         let currentEmployee = localStorage.getItem('xp_employee') || '';
+        let isAdmin = localStorage.getItem('xp_admin') === 'true';
 
         // ════ Persistence ════
         function save() {
@@ -808,7 +809,7 @@
         function updateTotal() {
             const mo = new Date().toISOString().slice(0,7);
             const t = records.filter(r=>
-                (!currentEmployee || r.applicant === currentEmployee) &&
+                (isAdmin || !currentEmployee || r.applicant === currentEmployee) &&
                 r.date?.startsWith(mo)
             ).reduce((s,r)=>s+Number(r.amount||0),0);
             document.getElementById('headerTotal').textContent = 'NT$ '+fmt(t);
@@ -1087,7 +1088,7 @@
             const m=document.getElementById('filterMonth')?.value||'';
             const c=document.getElementById('filterCat')?.value||'';
             return records.filter(r=>
-                (!currentEmployee || r.applicant === currentEmployee) &&
+                (isAdmin || !currentEmployee || r.applicant === currentEmployee) &&
                 (!m||r.date?.startsWith(m)) &&
                 (!c||r.category===c)
             );
@@ -1195,7 +1196,7 @@
         function renderStats(){
             const m=document.getElementById('statsMonth')?.value||'';
             const fl=records.filter(r=>
-                (!currentEmployee || r.applicant === currentEmployee) &&
+                (isAdmin || !currentEmployee || r.applicant === currentEmployee) &&
                 (!m||r.date?.startsWith(m))
             );
             const total=fl.reduce((s,r)=>s+Number(r.amount||0),0);
@@ -1250,7 +1251,7 @@
                 const data = await res.json();
                 if(data.employees && data.employees.length){
                     sel.innerHTML = '<option value="">-- 請選擇姓名 --</option>' +
-                        data.employees.map(e=>`<option value="${e}">${e}</option>`).join('');
+                        data.employees.map(e=>`<option value="${e.name}" data-admin="${e.admin}">${e.admin ? '👑 ' : ''}${e.name}</option>`).join('');
                     document.getElementById('loginSub').textContent = '請選擇您的姓名';
                 } else {
                     sel.innerHTML = '<option value="">（試算表尚未設定員工清單）</option>';
@@ -1263,17 +1264,21 @@
         }
 
         function doLogin(){
-            const code = document.getElementById('loginSelect').value.trim();
+            const sel = document.getElementById('loginSelect');
+            const code = sel.value.trim();
             if(!code){
-                document.getElementById('loginSelect').style.borderColor='var(--red)';
+                sel.style.borderColor='var(--red)';
                 return;
             }
-            document.getElementById('loginSelect').style.borderColor='';
+            sel.style.borderColor='';
+            const admin = sel.options[sel.selectedIndex]?.dataset.admin === 'true';
             currentEmployee = code;
+            isAdmin = admin;
             localStorage.setItem('xp_employee', code);
+            localStorage.setItem('xp_admin', admin ? 'true' : 'false');
             document.getElementById('loginOverlay').style.display='none';
-            document.getElementById('applicantInput').value = code;
-            document.getElementById('employeeLabel').textContent = '👤 ' + code;
+            document.getElementById('applicantInput').value = admin ? '' : code;
+            document.getElementById('employeeLabel').textContent = (admin ? '👑 ' : '👤 ') + code;
             buildFilters();
             renderRecords();
             buildStatsFilter();
@@ -1284,7 +1289,9 @@
         function doLogout(){
             if(!confirm('確定要登出嗎？')) return;
             currentEmployee = '';
+            isAdmin = false;
             localStorage.removeItem('xp_employee');
+            localStorage.removeItem('xp_admin');
             document.getElementById('loginSelect').value = '';
             document.getElementById('loginSelect').style.borderColor='';
             document.getElementById('loginOverlay').style.display='flex';
@@ -1300,7 +1307,7 @@
                 const res = await fetch(GAS_URL, {
                     method:'POST', redirect:'follow',
                     headers:{'Content-Type':'text/plain'},
-                    body: JSON.stringify({action:'load', applicant: currentEmployee || ''})
+                    body: JSON.stringify({action:'load', applicant: isAdmin ? '' : (currentEmployee || '')})
                 });
                 const data = await res.json();
                 if(data.error) throw new Error(data.error);
@@ -1353,8 +1360,8 @@
 
         // ════ Init ════
         if(currentEmployee){
-            document.getElementById('applicantInput').value = currentEmployee;
-            document.getElementById('employeeLabel').textContent = '👤 ' + currentEmployee;
+            document.getElementById('applicantInput').value = isAdmin ? '' : currentEmployee;
+            document.getElementById('employeeLabel').textContent = (isAdmin ? '👑 ' : '👤 ') + currentEmployee;
         } else {
             document.getElementById('loginOverlay').style.display = 'flex';
             fetchEmployees();
