@@ -414,6 +414,19 @@
             0%, 100% { opacity: 1; transform: scale(1); }
             50% { opacity: 0.4; transform: scale(0.7); }
         }
+        .btn-spinner {
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255,255,255,0.35);
+            border-top-color: currentColor;
+            border-radius: 50%;
+            display: inline-block;
+            vertical-align: -2px;
+            margin-right: 6px;
+            animation: btnSpin 0.7s linear infinite;
+        }
+        @keyframes btnSpin { to { transform: rotate(360deg); } }
+        .btn.is-loading, .btn-export.is-loading { cursor: wait; opacity: 0.85; }
         .queue-card {
             background: var(--card);
             border-radius: 16px;
@@ -643,7 +656,7 @@
                             <div class="confirm-info">
                                 已完成 <strong id="doneCount">0</strong> 張辨識
                             </div>
-                            <button class="btn btn-success" onclick="confirmAll()">✓ 全部加入記錄</button>
+                            <button class="btn btn-success" onclick="withLoading(this, confirmAll, '加入中...')">✓ 全部加入記錄</button>
                         </div>
                     </div>
                 </div>
@@ -685,9 +698,9 @@
                         <div id="monthBars" class="month-grid"></div>
                     </div>
 
-                    <button id="exportBtn" class="btn-export" onclick="exportExcel()">📥 匯出 Excel 給財務</button>
-                    <button class="btn-export" style="margin-top:10px;background:#4f8ef7" onclick="syncAllToSheet()">☁️ 手動同步到 Google 試算表</button>
-                    <button class="btn-export" style="margin-top:10px;background:#7c3aed" onclick="loadFromSheet()">📲 從 Google 試算表載入資料</button>
+                    <button id="exportBtn" class="btn-export" onclick="withLoading(this, exportExcel, '匯出中...')">📥 匯出 Excel 給財務</button>
+                    <button class="btn-export" style="margin-top:10px;background:#4f8ef7" onclick="withLoading(this, syncAllToSheet, '同步中...')">☁️ 手動同步到 Google 試算表</button>
+                    <button class="btn-export" style="margin-top:10px;background:#7c3aed" onclick="withLoading(this, loadFromSheet, '載入中...')">📲 從 Google 試算表載入資料</button>
                 </div>
             </div>
         </div>
@@ -785,6 +798,28 @@
         let queue = [];
         let currentEmployee = localStorage.getItem('xp_employee') || '';
         let isAdmin = localStorage.getItem('xp_admin') === 'true';
+
+        // ════ Button loading state ════
+        async function withLoading(btn, fn, loadingText) {
+            if (!btn || btn.dataset.loading === '1') return;
+            const orig = btn.innerHTML;
+            const wasDisabled = btn.disabled;
+            btn.dataset.loading = '1';
+            btn.disabled = true;
+            btn.classList.add('is-loading');
+            btn.innerHTML = '<span class="btn-spinner"></span>' + (loadingText || '處理中...');
+            try {
+                await fn();
+            } catch (e) {
+                console.error(e);
+                showSyncToast('❌ ' + (e.message || '操作失敗'));
+            } finally {
+                btn.innerHTML = orig;
+                btn.classList.remove('is-loading');
+                btn.disabled = wasDisabled;
+                btn.dataset.loading = '';
+            }
+        }
 
         // ════ Persistence ════
         function save() {
