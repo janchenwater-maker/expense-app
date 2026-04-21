@@ -975,28 +975,34 @@
             document.getElementById('confirmBar').style.display='none';
             switchTab('records');
 
-            showSyncToast('☁️ 同步到 Google 試算表中...');
+            if(!newRecs.length) return;
+            showSyncToast('☁️ 同步 '+newRecs.length+' 筆到 Google 試算表...');
+            const results = await Promise.allSettled(newRecs.map(rec => {
+                const payload = JSON.stringify({
+                    date:rec.date,applicant:rec.applicant,vendor:rec.vendor,
+                    invoice_no:rec.invoice_no,category:rec.category,
+                    description:rec.description,tax_type:rec.tax_type,
+                    amount:rec.amount,confidence:rec.confidence
+                });
+                return fetch(GAS_URL,{
+                    method:'POST',redirect:'follow',
+                    headers:{'Content-Type':'application/x-www-form-urlencoded'},
+                    body:'data='+encodeURIComponent(payload)
+                });
+            }));
             let ok=0, fail=0;
-            for(const rec of newRecs){
-                try{
-                    const payload=JSON.stringify({
-                        date:rec.date,applicant:rec.applicant,vendor:rec.vendor,
-                        invoice_no:rec.invoice_no,category:rec.category,
-                        description:rec.description,tax_type:rec.tax_type,
-                        amount:rec.amount,confidence:rec.confidence
-                    });
-                    await fetch(GAS_URL,{
-                        method:'POST',redirect:'follow',
-                        headers:{'Content-Type':'application/x-www-form-urlencoded'},
-                        body:'data='+encodeURIComponent(payload)
-                    });
+            let seqCounter=records.filter(r=>r.seq).length;
+            newRecs.forEach((rec,i)=>{
+                if(results[i].status==='fulfilled'){
                     const idx=records.findIndex(r=>r.id===rec.id);
                     if(idx>-1 && !records[idx].seq){
-                        records[idx].seq = records.filter(r=>r.seq).length + 1;
+                        records[idx].seq = ++seqCounter;
                     }
                     ok++;
-                }catch(e){fail++;}
-            }
+                } else {
+                    fail++;
+                }
+            });
             save();
             showSyncToast(fail===0?'✅ 已同步 '+ok+' 筆到 Google 試算表':'⚠️ 同步完成，'+fail+' 筆失敗');
         }
