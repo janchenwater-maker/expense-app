@@ -234,8 +234,10 @@
             -webkit-appearance: none;
         }
         .btn:active {
-            opacity: 0.75;
-            transform: scale(0.97);
+            opacity: 0.65;
+            transform: scale(0.93);
+            filter: brightness(0.85);
+            transition: opacity 0.05s, transform 0.05s, filter 0.05s;
         }
         .btn:disabled {
             opacity: 0.4;
@@ -967,6 +969,11 @@
                 preview:x.preview,
                 createdAt:new Date().toISOString()
             }));
+            if(!newRecs.length) return;
+
+            if(navigator.vibrate) navigator.vibrate(40);
+            showSyncToast('✅ 已加入 '+newRecs.length+' 筆，正在同步到試算表...');
+
             records=[...records,...newRecs];
             save();
             queue=[];
@@ -974,9 +981,6 @@
             document.getElementById('queueSection').style.display='none';
             document.getElementById('confirmBar').style.display='none';
             switchTab('records');
-
-            if(!newRecs.length) return;
-            showSyncToast('☁️ 同步 '+newRecs.length+' 筆到 Google 試算表...');
             const results = await Promise.allSettled(newRecs.map(rec => {
                 const payload = JSON.stringify({
                     date:rec.date,applicant:rec.applicant,vendor:rec.vendor,
